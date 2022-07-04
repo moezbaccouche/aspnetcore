@@ -1,8 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.AspNetCore.Mvc.Controllers;
-
 namespace MvcSandbox;
 
 public class Startup
@@ -44,6 +42,14 @@ public class Startup
         {
             ConfigureEndpoints(builder);
             var group = builder.MapGroup("/group");
+
+            group.AddRouteHandlerFilter((context, next) =>
+            {
+                var mi = context.MethodInfo;
+
+                return ic => next(ic);
+            });
+
             ConfigureEndpoints(group);
         });
     }

@@ -44,7 +44,8 @@ internal sealed class ActionEndpointFactory
         ActionDescriptor action,
         IReadOnlyList<ConventionalRouteEntry> routes,
         IReadOnlyList<Action<EndpointBuilder>> conventions,
-        bool createInertEndpoints)
+        bool createInertEndpoints,
+        RoutePattern? groupPrefix = null)
     {
         if (endpoints == null)
         {
@@ -107,6 +108,8 @@ internal sealed class ActionEndpointFactory
                     continue;
                 }
 
+                updatedRoutePattern = RoutePatternFactory.Combine(groupPrefix, updatedRoutePattern);
+
                 var requestDelegate = CreateRequestDelegate(action, route.DataTokens) ?? _requestDelegate;
 
                 // We suppress link generation for each conventionally routed endpoint. We generate a single endpoint per-route
@@ -150,6 +153,8 @@ internal sealed class ActionEndpointFactory
                     "To fix this error, choose a different parameter name.");
             }
 
+            updatedRoutePattern = RoutePatternFactory.Combine(groupPrefix, updatedRoutePattern);
+
             var builder = new RouteEndpointBuilder(requestDelegate, updatedRoutePattern, action.AttributeRouteInfo.Order)
             {
                 DisplayName = action.DisplayName,
@@ -173,7 +178,8 @@ internal sealed class ActionEndpointFactory
         HashSet<string> routeNames,
         HashSet<string> keys,
         ConventionalRouteEntry route,
-        IReadOnlyList<Action<EndpointBuilder>> conventions)
+        IReadOnlyList<Action<EndpointBuilder>> conventions,
+        RoutePattern? groupPrefix = null)
     {
         if (endpoints == null)
         {
@@ -216,6 +222,8 @@ internal sealed class ActionEndpointFactory
             // We don't expect this to happen, but we want to know if it does because it will help diagnose the bug.
             throw new InvalidOperationException("Failed to create a conventional route for pattern: " + route.Pattern);
         }
+
+        pattern = RoutePatternFactory.Combine(groupPrefix, pattern);
 
         var builder = new RouteEndpointBuilder(context => Task.CompletedTask, pattern, route.Order)
         {
