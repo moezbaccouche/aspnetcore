@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics;
 using System.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Internal;
 
 namespace Microsoft.AspNetCore.Mvc.Routing;
 
@@ -431,16 +433,30 @@ internal sealed class ActionEndpointFactory
 
             var context = new RouteHandlerContext(cad.MethodInfo, builder.Metadata, _serviceProvider);
 
+            var isAsync = AwaitableInfo.IsTypeAwaitable(cad.MethodInfo.ReturnType, out _);
+
+            RouteHandlerFilterDelegate del = default!;
+
             // Most inner delegate needs a ControllerRouteHandlerInvocationContext to function
-            RouteHandlerFilterDelegate del = static async (context) =>
+            if (isAsync)
             {
-                var controllerRhiContext = (ControllerRouteHandlerInvocationContext)context;
-                if (controllerRhiContext.Executor.IsMethodAsync)
+                del = static async (context) =>
                 {
+                    var controllerRhiContext = (ControllerRouteHandlerInvocationContext)context;
+                    Debug.Assert(controllerRhiContext.Executor.IsMethodAsync);
+
                     return await controllerRhiContext.Executor.ExecuteAsync(controllerRhiContext.Controller, (object[])controllerRhiContext.Arguments);
-                }
-                return controllerRhiContext.Executor.Execute(controllerRhiContext.Controller, (object[])controllerRhiContext.Arguments);
-            };
+                };
+            }
+            else
+            {
+                del = static (context) =>
+                {
+                    var controllerRhiContext = (ControllerRouteHandlerInvocationContext)context;
+                    Debug.Assert(!controllerRhiContext.Executor.IsMethodAsync);
+                    return new(controllerRhiContext.Executor.Execute(controllerRhiContext.Controller, (object[])controllerRhiContext.Arguments));
+                };
+            }
 
             for (var i = routeHandlerFilters.Count - 1; i >= 0; i--)
             {
